@@ -66,6 +66,9 @@ export default async ({ command, mode }: ConfigEnv): Promise<UserConfigExport> =
       server: {
         host: 'glific.test',
         port: 3000,
+        // local live-dev: reachable via Tailscale Funnel at :8443, which forwards
+        // the ts.net Host header — allow it alongside the local dev hostname
+        allowedHosts: ['glific.test', 'nithuns-macbook-pro.tailca2651.ts.net'],
         open: 'https://glific.test:3000/',
         headers: {
           'X-Content-Type-Options': 'nosniff',
