@@ -156,6 +156,10 @@ export const getInteractiveMessageBody = (interactiveJSON: any) => {
     }
   } else if (interactiveJSON.type === 'location_request_message') {
     messageBody = interactiveJSON.body.text;
+  } else {
+    // Safe fallback (PRD-005 T16) — an unrecognized interactive type renders nothing
+    // instead of throwing (e.g. accessing a shape-specific field that doesn't exist).
+    messageBody = '';
   }
 
   return messageBody;

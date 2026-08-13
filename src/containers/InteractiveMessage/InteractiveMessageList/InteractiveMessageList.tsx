@@ -28,7 +28,10 @@ const getType = (text: string) => {
     LIST: 'List',
   };
 
-  return <p className={styles.TableText}>{typeMappings[text]}</p>;
+  // Safe fallback (PRD-005 T16) — an unrecognized type shows its raw value instead of
+  // silently rendering blank; keeps this list page defensive without needing to become
+  // a full registry lookup itself (it's a render/list touchpoint, not authoring).
+  return <p className={styles.TableText}>{typeMappings[text] || text}</p>;
 };
 
 const getBody = (text: string) => {

@@ -23,7 +23,7 @@ import { EmojiInput } from 'components/UI/Form/EmojiInput/EmojiInput';
 import { AutoComplete } from 'components/UI/Form/AutoComplete/AutoComplete';
 import Simulator from 'components/simulator/Simulator';
 import { LanguageBar } from 'components/UI/LanguageBar/LanguageBar';
-import { LIST, LOCATION_REQUEST, MEDIA_MESSAGE_TYPES, QUICK_REPLY, VALID_URL_REGEX } from 'common/constants';
+import { LOCATION_REQUEST, MEDIA_MESSAGE_TYPES, QUICK_REPLY, VALID_URL_REGEX } from 'common/constants';
 import { validateMedia } from 'common/utils';
 import { Loading } from 'components/UI/Layout/Loading/Loading';
 import { InteractiveOptions } from './InteractiveOptions/InteractiveOptions';
@@ -31,11 +31,11 @@ import styles from './InteractiveMessage.module.css';
 import {
   convertJSONtoStateData,
   getDefaultValuesByTemplate,
-  getPayloadByMediaType,
   getTranslation,
   getVariableOptions,
   validator,
 } from './InteractiveMessage.helper';
+import { getTemplateTypeOptions, getTypeDescriptor } from './typeRegistry';
 import { GET_TAGS } from 'graphql/queries/Tags';
 import { CreateAutoComplete } from 'components/UI/Form/CreateAutoComplete/CreateAutoComplete';
 import { interactiveMessageInfo } from 'common/HelpData';
@@ -52,16 +52,14 @@ const queries = {
 };
 const UPLOAD_ATTACHMENT_ID = 'UPLOAD_ATTACHMENT';
 
-const templateTypeOptions = [
-  { id: QUICK_REPLY, label: 'Reply buttons' },
-  { id: LIST, label: 'List message' },
-  { id: LOCATION_REQUEST, label: 'Location request' },
-];
-
 export const InteractiveMessage = () => {
   const location: any = useLocation();
   const stateType = location.state;
   const navigate = useNavigate();
+  // Flag-filtered per T17 (R3) — recomputed each render so a flag flip (e.g. after
+  // login populates organizationServices) is picked up without a hard refresh, same
+  // pattern as `attachmentOptions`/`isWhatsAppFormEnabled` below and in TemplateOptions.tsx.
+  const templateTypeOptions = getTemplateTypeOptions();
   const [title, setTitle] = useState('');
   const [footer, setFooter] = useState('');
   const [body, setBody] = useState<any>();
@@ -149,22 +147,8 @@ export const InteractiveMessage = () => {
       return input;
     };
 
-    switch (type) {
-      case QUICK_REPLY:
-        return { ...interactiveContent, options: cleanMarkdown(interactiveContent.options) };
-
-      case LIST: {
-        const cleanedItems = interactiveContent.items.map((item: any) => ({
-          ...item,
-          options: cleanMarkdown(item.options),
-        }));
-        const { body, items, ...rest } = interactiveContent;
-        return { ...cleanMarkdown(rest), items: cleanedItems, body };
-      }
-
-      default:
-        return interactiveContent;
-    }
+    const descriptor = getTypeDescriptor(type);
+    return descriptor ? descriptor.cleanMarkdown(interactiveContent, cleanMarkdown) : interactiveContent;
   };
 
   useEffect(() => {
@@ -274,11 +258,12 @@ export const InteractiveMessage = () => {
     setTemplateTypeField(templateTypeOptions.find((option) => option.id === typeValue));
     setTimeout(() => setTemplateButtons(data.templateButtons), 100);
 
-    if (typeValue === LIST) {
+    const updateStatesDescriptor = getTypeDescriptor(typeValue);
+    if (updateStatesDescriptor?.hasGlobalButton) {
       setGlobalButton(data.globalButton);
     }
 
-    if (typeValue === QUICK_REPLY && data.type && data.attachmentURL) {
+    if (updateStatesDescriptor?.hasAttachments && data.type && data.attachmentURL) {
       setType({ id: data.type, label: data.type });
       setAttachmentURL(data.attachmentURL);
     }
@@ -349,11 +334,12 @@ export const InteractiveMessage = () => {
     setTemplateTypeField(templateTypeOptions.find((option) => option.id === typeValue));
     setTimeout(() => setTemplateButtons(data.templateButtons), 100);
 
-    if (typeValue === LIST) {
+    const setStatesDescriptor = getTypeDescriptor(typeValue);
+    if (setStatesDescriptor?.hasGlobalButton) {
       setGlobalButton(data.globalButton);
     }
 
-    if (typeValue === QUICK_REPLY && data.type && data.attachmentURL) {
+    if (setStatesDescriptor?.hasAttachments && data.type && data.attachmentURL) {
       setType({ id: data.type, label: data.type });
       setAttachmentURL(data.attachmentURL);
     }
@@ -402,14 +388,10 @@ export const InteractiveMessage = () => {
     stateToRestore: any = null
   ) => {
     let buttons: any = [];
-    const buttonType: any = {
-      QUICK_REPLY: { value: '' },
-      LIST: { title: '', options: [{ title: '', description: '' }] },
-      LOCATION_REQUEST_MESSAGE: {},
-    };
+    const emptyButtonState = getTypeDescriptor(templateTypeVal)?.emptyButtonState ?? {};
 
-    const templateResult = stateToRestore || [buttonType[templateTypeVal]];
-    buttons = addFromTemplate ? [...templateButtons, buttonType[templateTypeVal]] : templateResult;
+    const templateResult = stateToRestore || [emptyButtonState];
+    buttons = addFromTemplate ? [...templateButtons, emptyButtonState] : templateResult;
 
     setTemplateButtons(buttons);
   };
@@ -449,48 +431,10 @@ export const InteractiveMessage = () => {
     payload: any,
     setFieldValue: any
   ) => {
-    const { key, itemIndex, isOption } = payload;
     const buttons = [...templateButtons];
-    let result = [];
-    if (interactiveMessageType === QUICK_REPLY) {
-      result = buttons.map((row: any, idx: number) => {
-        if (idx === index) {
-          const newRow = { ...row };
-          newRow[key] = value;
-          return newRow;
-        }
-        return row;
-      });
-    }
+    const descriptor = getTypeDescriptor(interactiveMessageType);
+    const result = descriptor ? descriptor.handleInputChange(buttons, index, value, payload) : buttons;
 
-    if (interactiveMessageType === LIST) {
-      result = buttons.map((row: any, idx: number) => {
-        const { options }: { options: Array<any> } = row;
-        if (idx === index) {
-          // for options
-          if (isOption) {
-            const updatedOptions = options.map((option: any, optionIdx: number) => {
-              if (optionIdx === itemIndex) {
-                const newOption = { ...option };
-                newOption[key] = value;
-                return newOption;
-              }
-              return option;
-            });
-
-            const updatedRowWithOptions = { ...row, options: updatedOptions };
-            return updatedRowWithOptions;
-          }
-
-          // for title
-          const newRow = { ...row };
-          newRow[key] = value;
-          return newRow;
-        }
-
-        return row;
-      });
-    }
     setFieldValue('templateButtons', result);
     setTemplateButtons(result);
   };
@@ -690,26 +634,6 @@ export const InteractiveMessage = () => {
     },
   ];
 
-  const getTemplateButtonPayload = (typeVal: string, buttons: Array<any>) => {
-    if (typeVal === QUICK_REPLY) {
-      return buttons.map((button: any) => ({ type: 'text', title: button.value }));
-    }
-
-    return buttons.map((button: any) => {
-      const { title: sectionTitle, options: sectionOptions } = button;
-      const sectionOptionsObject = sectionOptions?.map((option: any) => ({
-        type: 'text',
-        title: option.title,
-        description: option.description,
-      }));
-      return {
-        title: sectionTitle,
-        subtitle: sectionTitle,
-        options: sectionOptionsObject,
-      };
-    });
-  };
-
   const convertStateDataToJSON = (
     payload: any,
     titleVal: string,
@@ -718,9 +642,7 @@ export const InteractiveMessage = () => {
     globalButtonVal: any
   ) => {
     const updatedPayload: any = { type: null, interactiveContent: null };
-    const { language: selectedLanguage } = payload;
-    const { tagId } = payload;
-    Object.assign(updatedPayload);
+    const { language: selectedLanguage, tagId } = payload;
 
     if (tagId) {
       Object.assign(updatedPayload, { tag_id: tagId.id });
@@ -728,51 +650,21 @@ export const InteractiveMessage = () => {
     if (selectedLanguage) {
       Object.assign(updatedPayload, { languageId: selectedLanguage.id });
     }
-    if (selectedLanguage) {
-      Object.assign(updatedPayload, { languageId: selectedLanguage.id });
+
+    const descriptor = getTypeDescriptor(templateTypeVal);
+    if (descriptor) {
+      Object.assign(
+        updatedPayload,
+        descriptor.buildPayload({
+          payload,
+          titleVal,
+          templateButtonVal,
+          globalButtonVal,
+          attachmentType: type,
+        })
+      );
     }
 
-    if (templateTypeVal === QUICK_REPLY) {
-      const content = getPayloadByMediaType(type?.id, payload);
-      const quickReplyOptions = getTemplateButtonPayload(templateTypeVal, templateButtonVal);
-
-      const quickReplyJSON = { type: 'quick_reply', content, options: quickReplyOptions };
-
-      Object.assign(updatedPayload, {
-        type: QUICK_REPLY,
-        interactiveContent: JSON.stringify(quickReplyJSON),
-      });
-    }
-
-    if (templateTypeVal === LIST) {
-      const bodyText = payload.body;
-      const items = getTemplateButtonPayload(templateTypeVal, templateButtonVal);
-      const globalButtons = [{ type: 'text', title: globalButtonVal }];
-
-      const listJSON = { type: 'list', title: titleVal, body: bodyText, globalButtons, items };
-      Object.assign(updatedPayload, {
-        type: LIST,
-        interactiveContent: JSON.stringify(listJSON),
-      });
-    }
-
-    if (templateType === LOCATION_REQUEST) {
-      const bodyText = payload.body;
-      const locationJson = {
-        type: 'location_request_message',
-        body: {
-          type: 'text',
-          text: bodyText,
-        },
-        action: {
-          name: 'send_location',
-        },
-      };
-      Object.assign(updatedPayload, {
-        type: LOCATION_REQUEST,
-        interactiveContent: JSON.stringify(locationJson),
-      });
-    }
     return updatedPayload;
   };
 
@@ -934,7 +826,7 @@ export const InteractiveMessage = () => {
     },
   ];
 
-  let formFields: any = templateType === QUICK_REPLY ? [...fields, ...attachmentInputs] : [...fields];
+  let formFields: any = getTypeDescriptor(templateType)?.hasAttachments ? [...fields, ...attachmentInputs] : [...fields];
   formFields = [
     ...formFields,
     {
