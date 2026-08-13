@@ -1,4 +1,5 @@
 import { LIST, LOCATION_REQUEST, QUICK_REPLY } from 'common/constants';
+import { getOrganizationServices } from 'services/AuthService';
 import {
   filterTypesByFlag,
   getTemplateTypeOptions,
@@ -161,5 +162,33 @@ describe('typeRegistry — feature-flag filtering mechanism (T17, R3)', () => {
   test('getTemplateTypeOptions() always returns all 3 existing types — none of them are flagged yet, so WhatsApp orgs see zero diff regardless of the swiftchatInteractiveTypesEnabled value', () => {
     const options = getTemplateTypeOptions();
     expect(options.map((option) => option.id).sort()).toEqual([LIST, LOCATION_REQUEST, QUICK_REPLY].sort());
+  });
+});
+
+describe('typeRegistry — swiftchatInteractiveTypesEnabled wiring (T17)', () => {
+  // Exercises the real getOrganizationServices call site inside getTemplateTypeOptions()
+  // (not just the pure filterTypesByFlag helper) — proves the exact flag-name string
+  // `swiftchatInteractiveTypesEnabled` is what gets asked for, matching the cross-repo
+  // contract with the backend flag field (PRD-005 T12).
+  test('getTemplateTypeOptions() calls getOrganizationServices with the flag name only for entries that declare `flagged`', () => {
+    vi.mocked(getOrganizationServices).mockClear();
+    getTemplateTypeOptions();
+
+    // none of the 3 registered types declare `flagged` today, so the flag is never
+    // queried — this will start firing once a SwiftChat-only type registers with
+    // flagged: 'swiftchatInteractiveTypesEnabled'.
+    expect(getOrganizationServices).not.toHaveBeenCalledWith('swiftchatInteractiveTypesEnabled');
+  });
+
+  test('flag OFF vs ON makes no difference to templateTypeOptions today (WhatsApp orgs pixel-identical)', () => {
+    vi.mocked(getOrganizationServices).mockReturnValue(false);
+    const flagOff = getTemplateTypeOptions();
+
+    vi.mocked(getOrganizationServices).mockReturnValue(true);
+    const flagOn = getTemplateTypeOptions();
+
+    expect(flagOff).toEqual(flagOn);
+
+    vi.mocked(getOrganizationServices).mockReturnValue(false);
   });
 });

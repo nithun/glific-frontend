@@ -27,7 +27,8 @@ type ServiceType =
   | 'aiEvaluationsEnabled'
   | 'copyNodeEnabled'
   | 'promptGeneratorEnabled'
-  | 'supersetEnabled';
+  | 'supersetEnabled'
+  | 'swiftchatInteractiveTypesEnabled';
 
 // get the current authentication session
 export const getAuthSession = (element?: string) => {

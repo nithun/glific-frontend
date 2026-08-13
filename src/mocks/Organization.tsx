@@ -260,6 +260,7 @@ export const getOrganizationServicesQuery = {
         assistantConfigVersionsEnabled: false,
         copyNodeEnabled: false,
         promptGeneratorEnabled: false,
+        swiftchatInteractiveTypesEnabled: false,
       },
     },
   },
