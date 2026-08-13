@@ -11,6 +11,7 @@ import {
 import { setUserSession } from 'services/AuthService';
 import InteractiveMessageList from './InteractiveMessageList';
 import { getFilterTagQuery } from 'mocks/Tag';
+import { FILTER_INTERACTIVE_MESSAGES, GET_INTERACTIVE_MESSAGES_COUNT } from 'graphql/queries/InteractiveMessage';
 
 const mocks = [
   filterInteractiveQuery,
@@ -126,5 +127,58 @@ test('It changes tag filter value', async () => {
   fireEvent.click(screen.getByTestId('newItemButton'));
   expect(mockedUsedNavigate).toHaveBeenCalledWith('/interactive-message/add', {
     state: { tag: { label: 'Messages', id: '1' } },
+  });
+});
+
+// T18: the `typeMappings[text] || text` fallback in InteractiveMessageList's getType()
+// (PRD-005 T16) must render the raw type string for a type it doesn't know about, rather
+// than silently rendering blank — this is what a future SwiftChat-only type would hit.
+const unknownTypeFilterRequest = {
+  request: {
+    query: FILTER_INTERACTIVE_MESSAGES,
+    variables: {
+      filter: {},
+      opts: { limit: 50, offset: 0, order: 'ASC', orderWith: 'label' },
+    },
+  },
+  result: {
+    data: {
+      interactiveTemplates: [
+        {
+          id: '99',
+          label: 'unrecognized type template',
+          type: 'SWIFTCHAT_FUTURE_TYPE',
+          translations: '{}',
+          language: { id: '1', label: 'English' },
+          sendWithTitle: true,
+          interactiveContent: '{"type":"list","body":"pick one"}',
+        },
+      ],
+    },
+  },
+};
+
+const unknownTypeCountRequest = {
+  request: {
+    query: GET_INTERACTIVE_MESSAGES_COUNT,
+    variables: { filter: {} },
+  },
+  result: { data: { countInteractiveTemplates: 1 } },
+};
+
+test('type column falls back to the raw type string for an unrecognized type', async () => {
+  render(
+    <MockedProvider
+      mocks={[unknownTypeFilterRequest, unknownTypeFilterRequest, unknownTypeCountRequest, getFilterTagQuery]}
+      addTypename={false}
+    >
+      <Router>
+        <InteractiveMessageList />
+      </Router>
+    </MockedProvider>
+  );
+
+  await waitFor(() => {
+    expect(screen.getByText('SWIFTCHAT_FUTURE_TYPE')).toBeInTheDocument();
   });
 });
