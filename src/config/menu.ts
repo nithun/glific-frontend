@@ -57,6 +57,13 @@ const menus = (): Menu[] => [
         type: 'sideDrawer',
         roles: allRoles,
       },
+      {
+        title: 'WhatsApp Phones',
+        path: '/group/phones',
+        icon: 'waGroup',
+        type: 'sideDrawer',
+        roles: managerLevel,
+      },
     ],
   },
   {
@@ -180,7 +187,6 @@ const menus = (): Menu[] => [
           path: '/assistants',
           icon: 'assistant',
           type: 'sideDrawer',
-          new: true,
           roles: allRoles,
           children: [
             {
@@ -197,6 +203,17 @@ const menus = (): Menu[] => [
               type: 'sideDrawer',
               roles: managerLevel,
             },
+            ...(getOrganizationServices('aiEvaluationV2Enabled')
+              ? [
+                  {
+                    title: 'AI Evaluation v2',
+                    path: '/ai-evaluation-v2',
+                    icon: 'aiEvals',
+                    type: 'sideDrawer',
+                    roles: managerLevel,
+                  },
+                ]
+              : []),
           ],
         },
       ]
@@ -209,17 +226,14 @@ const menus = (): Menu[] => [
           roles: allRoles,
         },
       ]),
-  ...(getOrganizationServices('supersetEnabled')
-    ? [
-        {
-          title: 'Data Analytics',
-          path: '/analytics',
-          icon: 'analytics',
-          type: 'sideDrawer',
-          roles: managerLevel,
-        },
-      ]
-    : []),
+  {
+    title: 'Data Analytics',
+    path: '/analytics',
+    icon: 'analytics',
+    type: 'sideDrawer',
+    new: true,
+    roles: allRoles,
+  },
   {
     title: 'Manage',
     path: '/collection',

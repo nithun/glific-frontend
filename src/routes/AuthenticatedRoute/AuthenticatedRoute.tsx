@@ -48,6 +48,7 @@ const MyAccount = lazy(() => import('containers/MyAccount/MyAccount'));
 const HSMList = lazy(() => import('containers/HSM/HSMList/HSMList'));
 const HSM = lazy(() => import('containers/HSM/HSM'));
 const HSMListV2 = lazy(() => import('containers/HSM/HSMListV2/HSMListV2'));
+const HSMV2 = lazy(() => import('containers/HSM/HSMV2/HSMV2'));
 const TicketList = lazy(() => import('containers/Ticket/TicketList/TicketList'));
 const SettingList = lazy(() => import('containers/SettingList/SettingList'));
 const BlockContactList = lazy(() => import('containers/BlockContact/BlockContactList/BlockContactList'));
@@ -65,11 +66,11 @@ const InteractiveMessage = lazy(() => import('containers/InteractiveMessage/Inte
 
 const RoleList = lazy(() => import('containers/Role/RoleList/RoleList'));
 const Role = lazy(() => import('containers/Role/Role'));
-const Assistant = lazy(() => import('containers/Assistants/Assistants'));
 const AssistantList = lazy(() => import('containers/Assistants/AssistantList/AssistantList'));
 const AssistantDetail = lazy(() => import('containers/Assistants/AssistantDetail/AssistantDetail'));
 const WaPollsCreate = lazy(() => import('containers/WaGroups/WaPolls/WaPolls'));
 const WaPollsList = lazy(() => import('containers/WaGroups/WaPolls/WaPollsList/WaPollsList'));
+const PhoneManagement = lazy(() => import('containers/WaGroups/PhoneManagement/PhoneManagement'));
 
 const Certificates = lazy(() => import('containers/Certificates/Certificate'));
 const CertificatesList = lazy(() => import('containers/Certificates/CertificatesList/CertificateList'));
@@ -79,6 +80,9 @@ const WhatsappFormsConfigure = lazy(() => import('containers/WhatsAppForms/Confi
 const AIEvaluationCreate = lazy(() => import('containers/AIEvals/AIEvaluationCreate/AIEvaluationCreate'));
 const AIEvalsPage = lazy(() => import('containers/AIEvals/AIEvalsPage/AIEvalsPage'));
 const AIEvalsRequestAcess = lazy(() => import('containers/AIEvals/AIEvalsRequestAcess/AIEvalsRequestAcess'));
+const AIEvaluation = lazy(() => import('containers/AIEvaluation/AIEvaluation'));
+const AIEvaluationAssistantDetail = lazy(() => import('containers/AIEvaluation/AssistantDetail/AssistantDetail'));
+const AIEvaluationGuard = lazy(() => import('containers/AIEvaluation/AIEvaluationGuard/AIEvaluationGuard'));
 
 const staffRoutes = (
   <Routes>
@@ -88,6 +92,7 @@ const staffRoutes = (
     <Route path="contact-profile/:id/*" element={<ContactProfile />} />
     <Route path="blocked-contacts" element={<BlockContactList />} />
     <Route path="myaccount" element={<MyAccount />} />
+    <Route path="analytics" element={<Analytics />} />
     <Route path="/*" element={<Chat />} />
   </Routes>
 );
@@ -125,10 +130,6 @@ const adminRoutes = (
     <Route path="staff-management/:id/edit" element={<StaffManagement />} />
     <Route path="contact-profile/:id/*" element={<ContactProfile />} />
     <Route path="myaccount" element={<MyAccount />} />
-    <Route path="template" element={<HSMList />} />
-    <Route path="template/add" element={<HSM />} />
-    <Route path="template/:id/edit" element={<HSM />} />
-    <Route path="template-v2" element={<HSMListV2 />} />
     <Route path="ticket" element={<TicketList />} />
     <Route path="settings" element={<SettingList />}>
       <Route path="" element={<Navigate to="organization" />} />
@@ -158,6 +159,7 @@ const adminRoutes = (
     <Route path="group/polls" element={<WaPollsList />} />
     <Route path="group/polls/add" element={<WaPollsCreate />} />
     <Route path="group/polls/:id/edit" element={<WaPollsCreate />} />
+    <Route path="group/phones" element={<PhoneManagement />} />
     <Route path="certificates" element={<CertificatesList />} />
     <Route path="certificate/add" element={<Certificates />} />
     <Route path="certificate/:id/edit" element={<Certificates />} />
@@ -170,6 +172,10 @@ const adminRoutes = (
     <Route path="ai-evaluations" element={<AIEvalsPage />} />
     <Route path="ai-evaluations/intro" element={<AIEvalsRequestAcess />} />
     <Route path="ai-evaluations/create" element={<AIEvaluationCreate />} />
+    <Route path="ai-evaluation-v2" element={<AIEvaluationGuard />}>
+      <Route index element={<AIEvaluation />} />
+      <Route path=":assistantId" element={<AIEvaluationAssistantDetail />} />
+    </Route>
     <Route path="/*" element={<Chat />} />
   </>
 );
@@ -203,7 +209,7 @@ export const AuthenticatedRoute = () => {
   const [provider, setProvider] = useState<string>('');
   const [showAskGlific, setShowAskGlific] = useState(false);
   const isAskGlificEnabled = getOrganizationServices('askGlificEnabled');
-  const isAssistantConfigVersionsEnabled = getOrganizationServices('assistantConfigVersionsEnabled');
+  const isTemplateV2Enabled = getOrganizationServices('templateV2Enabled');
 
   useEffect(() => {
     if (organizationProvider) {
@@ -241,17 +247,20 @@ export const AuthenticatedRoute = () => {
     route = (
       <Routes>
         {adminRoutes}
-        {isAssistantConfigVersionsEnabled ? (
+        <Route path="assistants" element={<AssistantList />} />
+        <Route path="assistants/:assistantId" element={<AssistantDetail />} />
+        <Route path="assistants/:assistantId/version/:versionNumber" element={<AssistantDetail />} />
+        {isTemplateV2Enabled ? (
           <>
-            <Route path="assistants" element={<AssistantList />} />
-            <Route path="assistants/:assistantId" element={<AssistantDetail />} />
-            <Route path="assistants/:assistantId/version/:versionNumber" element={<AssistantDetail />} />
+            <Route path="template" element={<HSMListV2 />} />
+            <Route path="template/add" element={<HSMV2 />} />
+            <Route path="template/:id/edit" element={<HSMV2 />} />
           </>
         ) : (
           <>
-            <Route path="assistants" element={<Assistant />} />
-            <Route path="assistants/add" element={<Assistant />} />
-            <Route path="assistants/:assistantId" element={<Assistant />} />
+            <Route path="template" element={<HSMList />} />
+            <Route path="template/add" element={<HSM />} />
+            <Route path="template/:id/edit" element={<HSM />} />
           </>
         )}
       </Routes>

@@ -42,7 +42,7 @@ export const POSTHOG_PROJECT_TOKEN = envVariables.VITE_PUBLIC_POSTHOG_PROJECT_TO
 export const POSTHOG_HOST = envVariables.VITE_PUBLIC_POSTHOG_HOST;
 export const APP_NAME = appName || 'Glific: Two way communication platform';
 export const GLIFIC_DOCS_URL = 'http://docs.glific.org';
-export const CORS_PROXY_URL = 'https://cors-anywhere.tides.coloredcow.com';
+export const CORS_PROXY_URL = 'https://cors-anywhere.glific.com';
 export const FLOWS_HELP_LINK = 'https://app.rapidpro.io/video/';
 export const STRIPE_PUBLISH_KEY = envVariables.VITE_STRIPE_PUBLISH_KEY;
 export const ONBOARD_URL_SETUP = `${GLIFIC_API_URL}/v1/onboard/setup`;
@@ -53,6 +53,9 @@ export const RECAPTCHA_CLIENT_KEY = envVariables.VITE_RECAPTCHA_CLIENT_KEY;
 export const DISCORD_URL = 'https://discord.gg/kyqsZAJEPK';
 export const UPLOAD_CONTACTS_SAMPLE = 'https://storage.googleapis.com/cc-tides/sample_contacts_import.csv';
 export const UPLOAD_CONTACTS_ADMIN_SAMPLE = 'https://storage.googleapis.com/cc-tides/sample_import_admin.csv';
+export const WA_GROUP_MEMBERS_SAMPLE =
+  'https://docs.google.com/spreadsheets/d/1-oupACzXqNWURa9nUv0rvpLrBNRTMRMN5EG-mY3zCvg/copy';
+
 export const REGISTRATION_HELP_LINK =
   'https://glific.slab.com/public/posts/02-managing-staff-members-creating-account-on-glific-gg6fkw8h';
 export const CONTACT_MANAGE_HELP_LINK =

@@ -14,6 +14,7 @@ const templateFields = `
     language {
       id
       label
+      locale
     }
 `;
 
@@ -34,6 +35,9 @@ export const FILTER_TEMPLATES = gql`
       isReserved
       isActive
       numberParameters
+      hasButtons
+      buttons
+      buttonType
       tag {
         id
         label
@@ -85,6 +89,21 @@ export const GET_TEMPLATE = gql`
 export const GET_HSM_CATEGORIES = gql`
   query {
     whatsappHsmCategories
+  }
+`;
+
+export const TEMPLATE_LIBRARY = gql`
+  query templateLibrary {
+    templateLibrary {
+      elementName
+      category
+      body
+      languageCode
+      industry
+      topic
+      usecase
+      containerMeta
+    }
   }
 `;
 export const GET_SHORTCODES = gql`

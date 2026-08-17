@@ -1,4 +1,9 @@
-import { CREATE_CREDENTIAL, DELETE_INACTIVE_ORGANIZATIONS, UPDATE_CREDENTIAL } from 'graphql/mutations/Organization';
+import {
+  CREATE_CREDENTIAL,
+  DELETE_ORGANIZATION,
+  UPDATE_CREDENTIAL,
+  UPDATE_ORGANIZATION_STATUS,
+} from 'graphql/mutations/Organization';
 import {
   GET_ORGANIZATION,
   USER_LANGUAGES,
@@ -257,10 +262,11 @@ export const getOrganizationServicesQuery = {
         ticketingEnabled: true,
         autoTranslationEnabled: true,
         whatsappGroupEnabled: true,
-        assistantConfigVersionsEnabled: false,
         copyNodeEnabled: false,
         promptGeneratorEnabled: false,
         swiftchatInteractiveTypesEnabled: false,
+        templateV2Enabled: true,
+        templateLibraryEnabled: true,
       },
     },
   },
@@ -518,6 +524,24 @@ export const getOrganizationLanguagesQuery = {
               id: '1',
               label: 'English',
             },
+          },
+        },
+      },
+    },
+  },
+};
+
+export const getOrganizationLanguagesQueryWithoutMatch = {
+  request: {
+    query: USER_LANGUAGES,
+  },
+  result: {
+    data: {
+      currentUser: {
+        user: {
+          organization: {
+            activeLanguages: [{ id: '9', label: 'French', localized: true, locale: 'fr' }],
+            defaultLanguage: { id: '9', label: 'French' },
           },
         },
       },
@@ -808,14 +832,75 @@ export const getAllOrganizations = [
   },
 ];
 
-export const deleteOrganization = {
+export const setOrganizationReadyToDelete = {
   request: {
-    query: DELETE_INACTIVE_ORGANIZATIONS,
-    variables: { isConfirmed: false, deleteOrganizationID: '2' },
+    query: UPDATE_ORGANIZATION_STATUS,
+    variables: { updateOrganizationId: '2', status: 'READY_TO_DELETE' },
   },
   result: {
     data: {
-      organization: null,
+      updateOrganizationStatus: {
+        organization: {
+          id: '2',
+          name: 'Foogle',
+          status: 'READY_TO_DELETE',
+          insertedAt: '2021-04-28T05:19:51Z',
+        },
+        errors: null,
+      },
+    },
+  },
+};
+
+export const deleteOrganization = {
+  request: {
+    query: DELETE_ORGANIZATION,
+    variables: { id: '2' },
+  },
+  result: {
+    data: {
+      deleteOrganization: {
+        errors: null,
+      },
+    },
+  },
+};
+
+export const deleteOrganizationError = {
+  request: {
+    query: DELETE_ORGANIZATION,
+    variables: { id: '2' },
+  },
+  error: new Error('Unable to delete organization'),
+};
+
+// Status transition resolves but returns a payload-level error.
+export const setOrganizationReadyToDeletePayloadError = {
+  request: {
+    query: UPDATE_ORGANIZATION_STATUS,
+    variables: { updateOrganizationId: '2', status: 'READY_TO_DELETE' },
+  },
+  result: {
+    data: {
+      updateOrganizationStatus: {
+        organization: null,
+        errors: [{ key: 'status', message: 'Unable to update organization status' }],
+      },
+    },
+  },
+};
+
+// Deletion resolves but returns a payload-level error.
+export const deleteOrganizationPayloadError = {
+  request: {
+    query: DELETE_ORGANIZATION,
+    variables: { id: '2' },
+  },
+  result: {
+    data: {
+      deleteOrganization: {
+        errors: [{ key: 'id', message: 'Organization is not in deletable status' }],
+      },
     },
   },
 };

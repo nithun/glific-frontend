@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { setErrorMessage } from 'common/notification';
 
 import { VITE_GLIFIC_AUTHENTICATION_API } from 'config';
 import setLogs from 'config/logs';
@@ -23,12 +22,14 @@ type ServiceType =
   | 'certificateEnabled'
   | 'askGlificEnabled'
   | 'whatsappFormsEnabled'
-  | 'assistantConfigVersionsEnabled'
   | 'aiEvaluationsEnabled'
+  | 'aiEvaluationV2Enabled'
   | 'copyNodeEnabled'
   | 'promptGeneratorEnabled'
   | 'supersetEnabled'
-  | 'swiftchatInteractiveTypesEnabled';
+  | 'swiftchatInteractiveTypesEnabled'
+  | 'templateV2Enabled'
+  | 'templateLibraryEnabled';
 
 // get the current authentication session
 export const getAuthSession = (element?: string) => {
@@ -88,7 +89,6 @@ export const checkAuthStatusService = () => {
     if (tokenExpiryTime.getTime() - now.getTime() > bufferMs) {
       // token is still valid (with buffer) return true
       authStatus = true;
-      setLogs(`Token valid. Expires in ${Math.floor((tokenExpiryTime.getTime() - now.getTime()) / 1000)}s`, 'info');
     } else {
       // this means token has expired or is about to expire
       authStatus = false;
@@ -253,7 +253,7 @@ export const setAuthHeaders = () => {
         // @ts-ignore
         if (!this.renewGlificCall && this.status === 401) {
           setLogs('XMLHttpRequest: Received 401, logging out', 'error');
-          window.location.href = '/logout/user';
+          window.location.replace('/logout/user');
         }
       });
 
@@ -276,28 +276,4 @@ export const setAuthHeaders = () => {
   })(XMLHttpRequest.prototype.send);
 
   return { xmlSend, fetch, xmlOpen };
-};
-
-export const checkOrgStatus = (status: any) => {
-  if (status === 'suspended') {
-    setErrorMessage(
-      {
-        message:
-          'Your account is suspended or paused by your team. In case of any concerns, please reach out to us on support@glific.org.',
-      },
-      'Account Suspended'
-    );
-    return false;
-  } else if (status === 'forced_suspension') {
-    setErrorMessage(
-      {
-        message:
-          'Your account has been suspended or paused due to a pending payment from your team. Kindly make the payment at your earliest convenience to resume your account. In case of any concerns, please reach out to us on support@glific.org.',
-      },
-      'Account Suspended'
-    );
-    return false;
-  }
-
-  return true;
 };
