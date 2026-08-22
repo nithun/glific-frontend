@@ -1,4 +1,6 @@
 import * as Yup from 'yup';
+import { QuickReplyTemplate } from './InteractiveOptions/QuickReplyTemplate';
+import { ListReplyTemplate } from './InteractiveOptions/ListReplyTemplate';
 import { LIST, LOCATION_REQUEST, QUICK_REPLY } from 'common/constants';
 import { getOrganizationServices } from 'services/AuthService';
 
@@ -49,6 +51,38 @@ export interface InteractiveTypeDescriptor {
   getTranslation: (attribute: string, defaultTemplate: any) => any;
   cleanMarkdown: (interactiveContent: any, cleanMarkdownFn: (input: any) => any) => any;
   validator: (t: any) => Record<string, any>;
+  /**
+   * F-107: the per-row options editor for this type.
+   *
+   * Before this, InteractiveOptions.getButtons() hardcoded `if LIST ... if
+   * QUICK_REPLY ...` and returned null for anything else — so a newly
+   * registered type rendered NO options editor and failed silently, looking
+   * like a blank area rather than an error. Sub-forms take materially
+   * different props, so the descriptor supplies both the component and a
+   * builder for its props rather than assuming a common signature.
+   *
+   * Omit for types with no repeating options (scorecard, video_stream): the
+   * dispatcher renders nothing, which is then correct rather than a bug.
+   */
+  subForm?: {
+    component: any;
+    buildProps: (ctx: SubFormContext) => Record<string, any>;
+  };
+}
+
+/** Everything InteractiveOptions can offer a sub-form; each picks what it needs. */
+export interface SubFormContext {
+  index: number;
+  inputFields: any;
+  form: any;
+  translation: any;
+  arrayHelpers: any;
+  setFieldValue: any;
+  onInputChange: (type: string, index: number, value: string, payload: any, setFieldValue: any) => void;
+  onAddClick: (helper: any, type: string) => void;
+  onRemoveClick: (helper: any, idx: number) => void;
+  onListItemAddClick: (index: number, options: Array<any>) => void;
+  onListItemRemoveClick: (index: number, itemIndex: number) => void;
 }
 
 const getPayloadByMediaType = (mediaType: string, payload: any) => {
@@ -107,6 +141,28 @@ Yup.addMethod(Yup.array, 'unique', function uniqueMethod(message) {
 });
 
 const quickReplyDescriptor: InteractiveTypeDescriptor = {
+  subForm: {
+    component: QuickReplyTemplate,
+    buildProps: ({
+      index,
+      inputFields,
+      form,
+      translation,
+      arrayHelpers,
+      setFieldValue,
+      onInputChange,
+      onAddClick,
+      onRemoveClick,
+    }: SubFormContext) => ({
+      translation: translation && translation[index],
+      index,
+      inputFields,
+      form,
+      onInputChange: (value: string, payload: any) => onInputChange(QUICK_REPLY, index, value, payload, setFieldValue),
+      onAddClick: () => onAddClick(arrayHelpers, QUICK_REPLY),
+      onRemoveClick: () => onRemoveClick(arrayHelpers, index),
+    }),
+  },
   id: QUICK_REPLY,
   label: 'Reply buttons',
   emptyButtonState: { value: '' },
@@ -225,6 +281,32 @@ const quickReplyDescriptor: InteractiveTypeDescriptor = {
 };
 
 const listDescriptor: InteractiveTypeDescriptor = {
+  subForm: {
+    component: ListReplyTemplate,
+    buildProps: ({
+      index,
+      inputFields,
+      form,
+      translation,
+      arrayHelpers,
+      setFieldValue,
+      onInputChange,
+      onAddClick,
+      onRemoveClick,
+      onListItemAddClick,
+      onListItemRemoveClick,
+    }: SubFormContext) => ({
+      translation: translation && translation.items && translation.items[index],
+      index,
+      inputFields,
+      form,
+      onListAddClick: () => onAddClick(arrayHelpers, LIST),
+      onListRemoveClick: () => onRemoveClick(arrayHelpers, index),
+      onListItemAddClick: (options: Array<any>) => onListItemAddClick(index, options),
+      onListItemRemoveClick: (itemIndex: number) => onListItemRemoveClick(index, itemIndex),
+      onInputChange: (value: string, payload: any) => onInputChange(LIST, index, value, payload, setFieldValue),
+    }),
+  },
   id: LIST,
   label: 'List message',
   emptyButtonState: { title: '', options: [{ title: '', description: '' }] },
@@ -449,6 +531,7 @@ export const getTemplateTypeOptions = (): Array<{ id: string; label: string }> =
   // `flagged` is a plain string here (new type descriptors can point at a service flag
   // before that flag's literal is added to AuthService's private `ServiceType` union) —
   // cast at this one boundary call rather than widening `ServiceType` itself.
-  const isFlagEnabled = (flag: string) => getOrganizationServices(flag as Parameters<typeof getOrganizationServices>[0]);
+  const isFlagEnabled = (flag: string) =>
+    getOrganizationServices(flag as Parameters<typeof getOrganizationServices>[0]);
   return filterTypesByFlag(orderedEntries, isFlagEnabled).map(({ id, label }) => ({ id, label }));
 };

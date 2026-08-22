@@ -1,4 +1,5 @@
 import { FormControl, TextField, FormHelperText, Typography } from '@mui/material';
+import { getTypeDescriptor } from '../typeRegistry';
 import { FieldArray } from 'formik';
 
 import { QUICK_REPLY, LIST, LOCATION_REQUEST } from 'common/constants';
@@ -49,42 +50,39 @@ export const InteractiveOptions = ({
     onRemoveClick(idx);
   };
 
+  // F-107: dispatch through the type registry instead of an if/else chain.
+  // The old version hardcoded LIST and QUICK_REPLY and returned null for
+  // anything else, so a newly registered type rendered a blank options area
+  // with no error — the failure looked like a layout bug rather than a
+  // missing form. A type with no repeating options simply declares no
+  // subForm, and rendering nothing is then correct.
   const getButtons = (index: number, arrayHelpers: any) => {
-    let template: any = null;
-    if (templateType === LIST) {
-      template = (
-        <ListReplyTemplate
-          translation={translation && translation.items[index]}
-          key={index}
-          index={index}
-          inputFields={inputFields}
-          form={form}
-          onListAddClick={() => handleAddClick(arrayHelpers, LIST)}
-          onListRemoveClick={() => handleRemoveClick(arrayHelpers, index)}
-          onListItemAddClick={(options: Array<any>) => onListItemAddClick(index, options)}
-          onListItemRemoveClick={(itemIndex: number) => onListItemRemoveClick(index, itemIndex)}
-          onInputChange={(value: string, payload: any) => onInputChange(LIST, index, value, payload, setFieldValue)}
-        />
-      );
+    const descriptor: any = getTypeDescriptor(templateType);
+
+    if (!descriptor || !descriptor.subForm) {
+      return null;
     }
 
-    if (templateType === QUICK_REPLY) {
-      template = (
-        <QuickReplyTemplate
-          translation={translation && translation[index]}
-          key={index}
-          index={index}
-          inputFields={inputFields}
-          form={form}
-          onInputChange={(value: string, payload: any) =>
-            onInputChange(QUICK_REPLY, index, value, payload, setFieldValue)
-          }
-          onAddClick={() => handleAddClick(arrayHelpers, QUICK_REPLY)}
-          onRemoveClick={() => handleRemoveClick(arrayHelpers, index)}
-        />
-      );
-    }
-    return template;
+    const { component: SubForm, buildProps } = descriptor.subForm;
+
+    return (
+      <SubForm
+        key={index}
+        {...buildProps({
+          index,
+          inputFields,
+          form,
+          translation,
+          arrayHelpers,
+          setFieldValue,
+          onInputChange,
+          onAddClick: handleAddClick,
+          onRemoveClick: handleRemoveClick,
+          onListItemAddClick,
+          onListItemRemoveClick,
+        })}
+      />
+    );
   };
 
   const radioTemplateType = (
