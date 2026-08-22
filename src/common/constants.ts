@@ -197,6 +197,9 @@ export const CARD = 'CARD';
 export const SWIFTCHAT_CONTACTS = 'SWIFTCHAT_CONTACTS';
 export const CATALOG_LIST = 'CATALOG_LIST';
 export const PRODUCT_LIST = 'PRODUCT_LIST';
+// rich_input has two variants; the backend uses one enum with an inner
+// discriminator, so the UI keys them separately and both map to RICH_INPUT.
+export const RICH_INPUT_DATE = 'RICH_INPUT_DATE';
 export const TERMS_OF_USE_LINK = 'https://glific.org/glific-terms-and-conditions/';
 export const COMPACT_MESSAGE_LENGTH = 35;
 

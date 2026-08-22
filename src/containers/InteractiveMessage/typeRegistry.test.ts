@@ -180,6 +180,43 @@ describe('typeRegistry — swiftchatInteractiveTypesEnabled wiring (T17)', () =>
     expect(getOrganizationServices).toHaveBeenCalledWith('swiftchatInteractiveTypesEnabled');
   });
 
+  test('every registry id maps to a value the backend InteractiveMessageType enum accepts', () => {
+    // The backend enum, as migrated. RICH_INPUT_DATE is a UI-only authoring
+    // entry: rich_input has two variants but ONE enum value, distinguished by
+    // an inner discriminator. Submitting the registry id verbatim would have
+    // been rejected at runtime, which is what wireType exists to prevent.
+    const backendEnum = [
+      'QUICK_REPLY',
+      'LIST',
+      'LOCATION_REQUEST_MESSAGE',
+      'ACTION',
+      'RICH_INPUT',
+      'VIDEO_STREAM',
+      'SCORECARD',
+      'ARTICLE',
+      'CARD',
+      'SWIFTCHAT_CONTACTS',
+      'CATALOG_LIST',
+      'PRODUCT_LIST',
+    ];
+
+    vi.mocked(getOrganizationServices).mockReturnValue(true);
+
+    for (const { id } of getTemplateTypeOptions()) {
+      const descriptor: any = getTypeDescriptor(id);
+      const submitted = descriptor.buildPayload({
+        payload: { body: 'x' },
+        titleVal: '',
+        templateButtonVal: [],
+        globalButtonVal: {},
+      }).type;
+
+      expect(backendEnum, `${id} submits "${submitted}", which the enum does not accept`).toContain(submitted);
+    }
+
+    vi.mocked(getOrganizationServices).mockReturnValue(false);
+  });
+
   test('flag OFF hides the SwiftChat types; ON reveals them (WhatsApp types unaffected either way)', () => {
     vi.mocked(getOrganizationServices).mockReturnValue(false);
     const flagOff = getTemplateTypeOptions().map((option: any) => option.id);

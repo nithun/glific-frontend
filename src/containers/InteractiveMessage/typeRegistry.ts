@@ -11,7 +11,10 @@ import {
   PRODUCT_LIST,
   QUICK_REPLY,
   RICH_INPUT,
+  RICH_INPUT_DATE,
+  SCORECARD,
   SWIFTCHAT_CONTACTS,
+  VIDEO_STREAM,
 } from 'common/constants';
 import { FieldRowTemplate, RowField } from './InteractiveOptions/FieldRowTemplate';
 import { getOrganizationServices } from 'services/AuthService';
@@ -533,6 +536,14 @@ const locationRequestDescriptor: InteractiveTypeDescriptor = {
  */
 const rowType = (config: {
   id: string;
+  /**
+   * The GraphQL InteractiveMessageType value to submit, when it differs from
+   * the registry id. rich_input has two authoring entries (date and form) but
+   * ONE backend enum value, because the provider models the variant with an
+   * inner discriminator. Without this the date form would submit
+   * 'RICH_INPUT_DATE' and be rejected by the enum at runtime.
+   */
+  wireType?: string;
   label: string;
   heading: string;
   fields: RowField[];
@@ -557,7 +568,7 @@ const rowType = (config: {
   getTemplateButtonPayload: (buttons) => buttons,
 
   buildPayload: ({ payload, templateButtonVal }) => ({
-    type: config.id,
+    type: config.wireType || config.id,
     interactiveContent: JSON.stringify(config.toContent(templateButtonVal || [], payload)),
   }),
 
@@ -759,6 +770,127 @@ const richInputDescriptor = rowType({
   validator: (t) => requiredRows(t, ['title']),
 });
 
+/**
+ * The three types with NO repeating options — scorecard, video_stream and
+ * rich_input(date). They reuse rowType with maxRows: 1 rather than getting
+ * main-form fields of their own.
+ *
+ * That works because FieldRowTemplate hides its add control when
+ * `inputFields.length === maxRows` and its remove control when there is only
+ * one row, so a single-row instance renders as a plain fixed field set. The
+ * form seeds exactly one row from emptyButtonState, so the author never sees
+ * the list-ness at all.
+ *
+ * F-179 originally recorded these as needing changes to InteractiveMessage's
+ * main form. They do not; that assumption was wrong and would have meant
+ * touching a shared component every other type also renders through.
+ */
+const scorecardDescriptor = rowType({
+  id: SCORECARD,
+  label: 'Scorecard',
+  heading: 'Scorecard*',
+  maxRows: 1,
+  fields: [
+    { key: 'score', label: 'Score' },
+    {
+      key: 'theme',
+      label: 'Theme',
+      options: [
+        { id: 'theme1', label: 'Theme 1' },
+        { id: 'theme2', label: 'Theme 2' },
+        { id: 'theme3', label: 'Theme 3' },
+        { id: 'theme4', label: 'Theme 4' },
+      ],
+    },
+    {
+      key: 'background',
+      label: 'Background',
+      options: [
+        { id: 'orange', label: 'Orange' },
+        { id: 'blue', label: 'Blue' },
+        { id: 'green', label: 'Green' },
+        { id: 'red', label: 'Red' },
+        { id: 'purple', label: 'Purple' },
+      ],
+    },
+    {
+      key: 'performance',
+      label: 'Performance',
+      options: [
+        { id: 'high', label: 'High' },
+        { id: 'medium', label: 'Medium' },
+        { id: 'low', label: 'Low' },
+      ],
+    },
+    { key: 'text1', label: 'Line 1' },
+    { key: 'text2', label: 'Line 2' },
+    { key: 'share_message', label: 'Share message (100 char.)' },
+  ],
+  // theme/background/performance are SELECTS, so an author cannot type a value
+  // the provider would have to clamp. share_message is truncated provider-side
+  // at 100 rather than refused, so over-typing degrades instead of failing.
+  toContent: (rows, payload) => ({
+    type: 'scorecard',
+    content: { type: 'text', text: payload.body },
+    config: { ...(rows[0] || {}), animation: 'confetti' },
+  }),
+  validator: (t) => requiredRows(t, ['score']),
+});
+
+const videoStreamDescriptor = rowType({
+  id: VIDEO_STREAM,
+  label: 'Video stream',
+  heading: 'Stream*',
+  maxRows: 1,
+  fields: [
+    { key: 'url', label: 'Stream URL (.m3u8)' },
+    { key: 'title', label: 'Title' },
+  ],
+  // protocol is not offered: hls is the only value observed accepted, and a
+  // free-text protocol field would invite a value SwiftChat rejects.
+  toContent: (rows, payload) => ({
+    type: 'video_stream',
+    content: { type: 'text', text: payload.body },
+    config: { url: rows[0]?.url, title: rows[0]?.title, protocol: 'hls' },
+  }),
+  validator: (t) => requiredRows(t, ['url']),
+});
+
+const parseDMY = (value: string) => {
+  const [day, month, year] = (value || '').split(/[/\-.]/).map((part) => parseInt(part, 10));
+  return day && month && year ? { day, month, year } : undefined;
+};
+
+const richInputDateDescriptor = rowType({
+  id: RICH_INPUT_DATE,
+  wireType: RICH_INPUT,
+  label: 'Date picker',
+  heading: 'Date range*',
+  maxRows: 1,
+  fields: [
+    { key: 'button_text', label: 'Button text' },
+    { key: 'min', label: 'Earliest date (DD/MM/YYYY)' },
+    { key: 'max', label: 'Latest date (DD/MM/YYYY)' },
+  ],
+  // An incomplete or unparseable bound is OMITTED, matching the provider,
+  // which drops a partial bound rather than inventing one. A silently invented
+  // date range is worse than SwiftChat rejecting an incomplete one.
+  toContent: (rows, payload) => {
+    const row = rows[0] || {};
+    const min = parseDMY(row.min);
+    const max = parseDMY(row.max);
+
+    return {
+      type: 'rich_input',
+      content: { type: 'text', text: payload.body },
+      input_type: 'date',
+      button_text: row.button_text || 'Pick a date',
+      config: { ...(min ? { min } : {}), ...(max ? { max } : {}) },
+    };
+  },
+  validator: (t) => requiredRows(t, ['button_text']),
+});
+
 // Registration order == authoring dropdown order. Add new types here.
 const TYPE_ORDER = [
   QUICK_REPLY,
@@ -771,6 +903,9 @@ const TYPE_ORDER = [
   RICH_INPUT,
   CATALOG_LIST,
   PRODUCT_LIST,
+  SCORECARD,
+  VIDEO_STREAM,
+  RICH_INPUT_DATE,
 ];
 
 const TYPE_REGISTRY: Record<string, InteractiveTypeDescriptor> = {
@@ -784,6 +919,9 @@ const TYPE_REGISTRY: Record<string, InteractiveTypeDescriptor> = {
   [RICH_INPUT]: richInputDescriptor,
   [CATALOG_LIST]: catalogListDescriptor,
   [PRODUCT_LIST]: productListDescriptor,
+  [SCORECARD]: scorecardDescriptor,
+  [VIDEO_STREAM]: videoStreamDescriptor,
+  [RICH_INPUT_DATE]: richInputDateDescriptor,
 };
 
 export const getTypeDescriptor = (id: string | null | undefined): InteractiveTypeDescriptor | undefined =>
