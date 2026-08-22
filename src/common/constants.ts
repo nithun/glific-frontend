@@ -182,6 +182,21 @@ export const LIST = 'LIST';
 export const QUICK_REPLY = 'QUICK_REPLY';
 export const WHATSAPP_FORM = 'WHATSAPP_FORM';
 export const LOCATION_REQUEST = 'LOCATION_REQUEST_MESSAGE';
+
+// PRD-005 / F-175: the SwiftChat interactive types. Uppercase to match the
+// GraphQL InteractiveMessageType enum, which is how the existing three are
+// keyed. SWIFTCHAT_CONTACTS is deliberately not CONTACTS: the backend enum
+// already carries an unrelated `contact`, and two names one letter apart is
+// a trap that will eventually be typed wrong.
+export const ACTION = 'ACTION';
+export const RICH_INPUT = 'RICH_INPUT';
+export const VIDEO_STREAM = 'VIDEO_STREAM';
+export const SCORECARD = 'SCORECARD';
+export const ARTICLE = 'ARTICLE';
+export const CARD = 'CARD';
+export const SWIFTCHAT_CONTACTS = 'SWIFTCHAT_CONTACTS';
+export const CATALOG_LIST = 'CATALOG_LIST';
+export const PRODUCT_LIST = 'PRODUCT_LIST';
 export const TERMS_OF_USE_LINK = 'https://glific.org/glific-terms-and-conditions/';
 export const COMPACT_MESSAGE_LENGTH = 35;
 

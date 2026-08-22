@@ -1,7 +1,19 @@
 import * as Yup from 'yup';
 import { QuickReplyTemplate } from './InteractiveOptions/QuickReplyTemplate';
 import { ListReplyTemplate } from './InteractiveOptions/ListReplyTemplate';
-import { LIST, LOCATION_REQUEST, QUICK_REPLY } from 'common/constants';
+import {
+  ACTION,
+  ARTICLE,
+  CARD,
+  CATALOG_LIST,
+  LIST,
+  LOCATION_REQUEST,
+  PRODUCT_LIST,
+  QUICK_REPLY,
+  RICH_INPUT,
+  SWIFTCHAT_CONTACTS,
+} from 'common/constants';
+import { FieldRowTemplate, RowField } from './InteractiveOptions/FieldRowTemplate';
 import { getOrganizationServices } from 'services/AuthService';
 
 /**
@@ -504,13 +516,274 @@ const locationRequestDescriptor: InteractiveTypeDescriptor = {
   validator: () => ({}),
 };
 
+/**
+ * PRD-005 / F-175 — the SwiftChat row-based interactive types.
+ *
+ * These seven differ only in which fields a row carries and how those rows
+ * map to a wire payload, so they share one generic descriptor factory and one
+ * generic sub-form rather than seven near-duplicates. Anything genuinely
+ * type-specific (SwiftChat's per-type quirks) lives in `toContent` below,
+ * where it is visible instead of buried in a bespoke component.
+ *
+ * The provider owns the wire shape; these payloads are the GLIFIC-side
+ * interactive_content that `Glific.Providers.Swiftchat.Message` translates.
+ * They deliberately do NOT mirror SwiftChat's wire JSON — an author should not
+ * have to know that a card header is a media id or that a catalog id must be
+ * 24 characters.
+ */
+const rowType = (config: {
+  id: string;
+  label: string;
+  heading: string;
+  fields: RowField[];
+  maxRows: number;
+  toContent: (rows: any[], payload: any) => any;
+  validator: (t: any) => Record<string, any>;
+}): InteractiveTypeDescriptor => ({
+  id: config.id,
+  label: config.label,
+  flagged: 'swiftchatInteractiveTypesEnabled',
+  emptyButtonState: config.fields.reduce((acc: any, f) => ({ ...acc, [f.key]: '' }), {}),
+  hasFooter: false,
+  hasAttachments: false,
+  hasGlobalButton: false,
+
+  handleInputChange: (buttons, index, value, payload) => {
+    const updated = [...buttons];
+    updated[index] = { ...updated[index], [payload.key]: value };
+    return updated;
+  },
+
+  getTemplateButtonPayload: (buttons) => buttons,
+
+  buildPayload: ({ payload, templateButtonVal }) => ({
+    type: config.id,
+    interactiveContent: JSON.stringify(config.toContent(templateButtonVal || [], payload)),
+  }),
+
+  convertJSONtoStateData: (data: any) => ({
+    title: data.title || '',
+    body: data.content?.text || '',
+    templateButtons: data.items || [],
+  }),
+
+  getDefaultValuesByTemplate: (data: any) => ({
+    title: data.title || '',
+    body: data.content?.text || '',
+    templateButtons: data.items || [],
+  }),
+
+  getTranslation: (attribute: string, defaultTemplate: any) =>
+    attribute === 'body' ? defaultTemplate?.content?.text : defaultTemplate?.[attribute],
+
+  cleanMarkdown: (interactiveContent: any, cleanMarkdownFn: (input: any) => any) => ({
+    ...interactiveContent,
+    items: cleanMarkdownFn(interactiveContent.items),
+  }),
+
+  validator: config.validator,
+
+  subForm: {
+    component: FieldRowTemplate,
+    buildProps: ({
+      index,
+      inputFields,
+      form,
+      translation,
+      arrayHelpers,
+      setFieldValue,
+      onInputChange,
+      onAddClick,
+      onRemoveClick,
+    }: SubFormContext) => ({
+      index,
+      inputFields,
+      form,
+      translation: translation && translation[index],
+      fields: config.fields,
+      heading: config.heading,
+      maxRows: config.maxRows,
+      onInputChange: (value: string, p: any) => onInputChange(config.id, index, value, p, setFieldValue),
+      onAddClick: () => onAddClick(arrayHelpers, config.id),
+      onRemoveClick: () => onRemoveClick(arrayHelpers, index),
+    }),
+  },
+});
+
+const requiredRows = (t: any, keys: string[]) => ({
+  templateButtons: Yup.array().of(
+    Yup.object().shape(keys.reduce((acc: any, k) => ({ ...acc, [k]: Yup.string().required(t('Required')) }), {}))
+  ),
+});
+
+const articleDescriptor = rowType({
+  id: ARTICLE,
+  label: 'Article',
+  heading: 'Articles*',
+  maxRows: 10,
+  fields: [
+    { key: 'title', label: 'Title (100 char.)' },
+    { key: 'description', label: 'Description (1024 char.)', multiline: true },
+  ],
+  // SwiftChat REJECTS url and image on an article element, so the form does
+  // not offer them -- an author cannot compose a payload that will 400.
+  toContent: (rows) => ({ type: 'article', items: rows.map((r) => ({ title: r.title, description: r.description })) }),
+  validator: (t) => requiredRows(t, ['title', 'description']),
+});
+
+const contactsDescriptor = rowType({
+  id: SWIFTCHAT_CONTACTS,
+  label: 'Contact card',
+  heading: 'Contacts*',
+  maxRows: 10,
+  fields: [
+    { key: 'name', label: 'Full name' },
+    { key: 'phone', label: 'Phone (optional)' },
+  ],
+  toContent: (rows) => ({
+    type: 'swiftchat_contacts',
+    items: rows.map((r) => ({ name: r.name, phones: r.phone ? [r.phone] : [] })),
+  }),
+  validator: (t) => requiredRows(t, ['name']),
+});
+
+const actionDescriptor = rowType({
+  id: ACTION,
+  label: 'Action buttons',
+  heading: 'Website buttons*',
+  maxRows: 5,
+  fields: [
+    { key: 'title', label: 'Button text' },
+    { key: 'url', label: 'Website URL' },
+  ],
+  toContent: (rows, payload) => ({
+    type: 'action',
+    content: { type: 'text', text: payload.body },
+    options: rows.map((r) => ({ type: 'website', title: r.title, url: r.url })),
+  }),
+  validator: (t) => requiredRows(t, ['title', 'url']),
+});
+
+const cardDescriptor = rowType({
+  id: CARD,
+  label: 'Card carousel',
+  heading: 'Cards*',
+  maxRows: 10,
+  fields: [
+    { key: 'title', label: 'Card title' },
+    { key: 'subtitle', label: 'Subtitle' },
+    { key: 'image_url', label: 'Header image URL' },
+  ],
+  // image_url resolves through the ADR-017 media registry provider-side; the
+  // author supplies a URL and never sees a media id.
+  toContent: (rows) => ({ type: 'card', items: rows }),
+  validator: (t) => requiredRows(t, ['title', 'image_url']),
+});
+
+const catalogListDescriptor = rowType({
+  id: CATALOG_LIST,
+  label: 'Catalog list',
+  heading: 'Catalogs*',
+  maxRows: 10,
+  fields: [
+    { key: 'name', label: 'Catalog name' },
+    { key: 'icon_url', label: 'Icon URL' },
+    { key: 'id', label: 'Catalog id (optional)' },
+  ],
+  toContent: (rows, payload) => ({
+    type: 'catalog_list',
+    content: { type: 'text', text: payload.body },
+    items: rows,
+  }),
+  validator: (t) => requiredRows(t, ['name']),
+});
+
+const productListDescriptor = rowType({
+  id: PRODUCT_LIST,
+  label: 'Product list',
+  heading: 'Products*',
+  maxRows: 10,
+  fields: [
+    { key: 'name', label: 'Product name' },
+    { key: 'price', label: 'Price' },
+    { key: 'currency', label: 'Currency (e.g. INR)' },
+    { key: 'image_url', label: 'Image URL' },
+  ],
+  toContent: (rows) => ({ type: 'product_list', items: rows }),
+  validator: (t) => requiredRows(t, ['name', 'price']),
+});
+
+const richInputDescriptor = rowType({
+  id: RICH_INPUT,
+  label: 'Form / date input',
+  heading: 'Form fields*',
+  maxRows: 7,
+  fields: [
+    {
+      key: 'type',
+      label: 'Field type',
+      options: [
+        { id: 'text', label: 'Text' },
+        { id: 'dropdown', label: 'Dropdown' },
+        { id: 'date', label: 'Date' },
+      ],
+    },
+    { key: 'title', label: 'Question' },
+    { key: 'reply_label', label: 'Reply label' },
+    { key: 'options', label: 'Dropdown choices, comma separated' },
+  ],
+  // is_sensitive is REQUIRED on a text field and FORBIDDEN on a dropdown, and
+  // dropdown choices must be {name,value} objects. The author supplies a plain
+  // comma-separated list; the provider builder applies both rules, so neither
+  // divergence can be got wrong here.
+  toContent: (rows, payload) => ({
+    type: 'rich_input',
+    content: { type: 'text', text: payload.body },
+    input_type: 'form',
+    config: {
+      fields: rows.map((r) => ({
+        type: r.type || 'text',
+        title: r.title,
+        reply_label: r.reply_label || r.title,
+        ...(r.type === 'dropdown'
+          ? {
+              options: (r.options || '')
+                .split(',')
+                .map((o: string) => o.trim())
+                .filter(Boolean),
+            }
+          : {}),
+      })),
+    },
+  }),
+  validator: (t) => requiredRows(t, ['title']),
+});
+
 // Registration order == authoring dropdown order. Add new types here.
-const TYPE_ORDER = [QUICK_REPLY, LIST, LOCATION_REQUEST];
+const TYPE_ORDER = [
+  QUICK_REPLY,
+  LIST,
+  LOCATION_REQUEST,
+  ACTION,
+  ARTICLE,
+  CARD,
+  SWIFTCHAT_CONTACTS,
+  RICH_INPUT,
+  CATALOG_LIST,
+  PRODUCT_LIST,
+];
 
 const TYPE_REGISTRY: Record<string, InteractiveTypeDescriptor> = {
   [QUICK_REPLY]: quickReplyDescriptor,
   [LIST]: listDescriptor,
   [LOCATION_REQUEST]: locationRequestDescriptor,
+  [ACTION]: actionDescriptor,
+  [ARTICLE]: articleDescriptor,
+  [CARD]: cardDescriptor,
+  [SWIFTCHAT_CONTACTS]: contactsDescriptor,
+  [RICH_INPUT]: richInputDescriptor,
+  [CATALOG_LIST]: catalogListDescriptor,
+  [PRODUCT_LIST]: productListDescriptor,
 };
 
 export const getTypeDescriptor = (id: string | null | undefined): InteractiveTypeDescriptor | undefined =>

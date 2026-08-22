@@ -174,20 +174,33 @@ describe('typeRegistry — swiftchatInteractiveTypesEnabled wiring (T17)', () =>
     vi.mocked(getOrganizationServices).mockClear();
     getTemplateTypeOptions();
 
-    // none of the 3 registered types declare `flagged` today, so the flag is never
-    // queried — this will start firing once a SwiftChat-only type registers with
-    // flagged: 'swiftchatInteractiveTypesEnabled'.
-    expect(getOrganizationServices).not.toHaveBeenCalledWith('swiftchatInteractiveTypesEnabled');
+    // The tripwire this test was written as has now fired, as its original
+    // comment predicted: the SwiftChat row types register with
+    // flagged: 'swiftchatInteractiveTypesEnabled', so the flag IS queried.
+    expect(getOrganizationServices).toHaveBeenCalledWith('swiftchatInteractiveTypesEnabled');
   });
 
-  test('flag OFF vs ON makes no difference to templateTypeOptions today (WhatsApp orgs pixel-identical)', () => {
+  test('flag OFF hides the SwiftChat types; ON reveals them (WhatsApp types unaffected either way)', () => {
     vi.mocked(getOrganizationServices).mockReturnValue(false);
-    const flagOff = getTemplateTypeOptions();
+    const flagOff = getTemplateTypeOptions().map((option: any) => option.id);
 
     vi.mocked(getOrganizationServices).mockReturnValue(true);
-    const flagOn = getTemplateTypeOptions();
+    const flagOn = getTemplateTypeOptions().map((option: any) => option.id);
 
-    expect(flagOff).toEqual(flagOn);
+    // The three WhatsApp-era types are unflagged and must survive both states —
+    // this is the half of the original assertion that still matters.
+    for (const unflagged of ['QUICK_REPLY', 'LIST', 'LOCATION_REQUEST_MESSAGE']) {
+      expect(flagOff).toContain(unflagged);
+      expect(flagOn).toContain(unflagged);
+    }
+
+    // ...and the flagged ones appear only when the flag is on.
+    for (const flagged of ['ACTION', 'ARTICLE', 'CARD', 'SWIFTCHAT_CONTACTS', 'RICH_INPUT']) {
+      expect(flagOff).not.toContain(flagged);
+      expect(flagOn).toContain(flagged);
+    }
+
+    expect(flagOn.length).toBeGreaterThan(flagOff.length);
 
     vi.mocked(getOrganizationServices).mockReturnValue(false);
   });
