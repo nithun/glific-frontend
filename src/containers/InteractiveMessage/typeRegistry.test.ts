@@ -241,4 +241,19 @@ describe('typeRegistry — swiftchatInteractiveTypesEnabled wiring (T17)', () =>
 
     vi.mocked(getOrganizationServices).mockReturnValue(false);
   });
+
+  test('F-184: the scorecard form offers every text line SwiftChat requires', () => {
+    const descriptor: any = getTypeDescriptor('SCORECARD');
+    const keys = descriptor.subForm.buildProps({ index: 0, form: { values: {}, errors: {}, touched: {} } })
+      .fields.map((field: any) => field.key);
+
+    // text4 is the one that bit us: the form had no field for it at all, and
+    // SwiftChat rejects a scorecard without it, so every scorecard authored
+    // here was undeliverable. text3 is the only optional line.
+    for (const required of ['score', 'share_message', 'text1', 'text2', 'text4']) {
+      expect(keys).toContain(required);
+    }
+
+    expect(keys).toContain('text3');
+  });
 });

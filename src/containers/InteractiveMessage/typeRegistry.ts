@@ -822,19 +822,28 @@ const scorecardDescriptor = rowType({
         { id: 'low', label: 'Low' },
       ],
     },
-    { key: 'text1', label: 'Line 1' },
-    { key: 'text2', label: 'Line 2' },
+    { key: 'text1', label: 'Line 1 (15 char.)' },
+    { key: 'text2', label: 'Line 2 (35 char.)' },
+    { key: 'text3', label: 'Line 3 — optional (15 char.)' },
+    { key: 'text4', label: 'Line 4 (15 char.)' },
     { key: 'share_message', label: 'Share message (100 char.)' },
   ],
   // theme/background/performance are SELECTS, so an author cannot type a value
-  // the provider would have to clamp. share_message is truncated provider-side
-  // at 100 rather than refused, so over-typing degrades instead of failing.
+  // the provider would have to clamp.
+  //
+  // F-184: the form used to offer text1, text2 and share_message only, and
+  // required nothing but score. SwiftChat requires text1, text2, text4, score
+  // AND share_message, so every scorecard authored here was undeliverable —
+  // text4 had no field at all. The per-field character counts in the labels are
+  // the live limits, measured field by field; text2 really is 35 while its
+  // neighbours are 15. Over-typing degrades rather than failing: the provider
+  // truncates to the same limits.
   toContent: (rows, payload) => ({
     type: 'scorecard',
     content: { type: 'text', text: payload.body },
     config: { ...(rows[0] || {}), animation: 'confetti' },
   }),
-  validator: (t) => requiredRows(t, ['score']),
+  validator: (t) => requiredRows(t, ['score', 'share_message', 'text1', 'text2', 'text4']),
 });
 
 const videoStreamDescriptor = rowType({
